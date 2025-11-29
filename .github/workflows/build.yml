@@ -146,18 +146,45 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 # ----------------------------------------------------------------
-  # 任务 4: 构建并推送 Docker 镜像
+  # 任务 4: 构建并推送 Docker 镜像 (复用产物，极速构建)
   # ----------------------------------------------------------------
   push-docker:
-    needs: create-release # 等 release 创建完再推送镜像，或者并行运行也可以
+    # 依赖 build-linux 任务完成，确保有 Artifacts 可下载
+    # 也可以依赖 create-release，看您希望何时触发
+    needs: [build-linux, create-release] 
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write # [必需] 允许写入 GitHub Packages
+      packages: write
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      # 1. 下载之前构建好的 Linux 二进制文件
+      # pattern 匹配 build-linux 任务上传的 artifact 名称
+      - name: Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: NodeTool-Linux-*
+          path: download_artifacts
+
+      # 2. [关键] 整理文件结构以适配 Dockerfile.publish
+      # 我们将下载的文件移动到 dist/linux/amd64 和 dist/linux/arm64
+      # 这样 Dockerfile 中的 COPY 指令就能通过 ${TARGETARCH} 找到对应文件
+      - name: Prepare Build Context
+        run: |
+          mkdir -p dist/linux/amd64
+          mkdir -p dist/linux/arm64
+          
+          echo "Moving artifacts to build context..."
+          # download-artifact v4 会解压到以 artifact 名字命名的文件夹中
+          # 将内容复制到目标架构目录
+          cp -r download_artifacts/NodeTool-Linux-amd64/* dist/linux/amd64/
+          cp -r download_artifacts/NodeTool-Linux-arm64/* dist/linux/arm64/
+          
+          echo "Structure of dist folder:"
+          ls -R dist/
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -172,27 +199,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
-          # 自动生成 tags: latest 和 v1.0.0 (基于输入)
           tags: |
             type=raw,value=latest
             type=raw,value=${{ github.event.inputs.tag_name }}
 
+      # 3. 构建镜像 (使用 Dockerfile.publish)
+      # 此时不再运行 PyInstaller，只是复制文件，速度极快
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile
-          # 开启推送
+          file: Dockerfile.publish
           push: true
-          # 同时构建 AMD64 和 ARM64 镜像
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # 使用 GitHub Actions 缓存加速构建
-          cache-from: type=gha
-          cache-to: type=gha,mode=max

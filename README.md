@@ -11,8 +11,10 @@ NAT小鸡推荐！！！**[独角鲸NAT](https://fuckip.me)** 价格亲民的高
 
 我们要展示的不仅仅是代码，更是实际的效果。您可以点击下方链接体验：
 
-🚀 **[演示网站](http://204.197.161.164:50012)**
+ **[演示网站-1](http://204.197.161.164:50012)**
+
 演示服务器位于US，配置一般，打开和反应速度不会很快
+
 **演示账号:**
 - 用户名: `admin`
 - 密码: `123456`
@@ -30,6 +32,40 @@ curl -fsSL https://raw.githubusercontent.com/hobin02130/node-tool/main/install.s
 ```
 ---
 
+###  🚀 Docker化安装
+
+
+```bash
+docker run -d \
+  --name nodetool \
+  --restart always \
+  -p 5000:5000 \
+  -v /root/nodetool_data/db_config.json:/app/db_config.json \
+  -v /root/nodetool_data/app.db:/app/app.db \
+  -v /root/nodetool_data/nodes:/app/nodes \
+  ghcr.io/hobin66/node-tool:latest
+```
+
+使用 docker-compose.yml (推荐)
+
+```bash
+version: '3.8'
+services:
+  nodetool:
+    image: ghcr.io/hobin66/node-tool:latest
+    container_name: nodetool
+    restart: always
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data/db_config.json:/app/db_config.json
+      - ./data/app.db:/app/app.db
+      - ./data/nodes:/app/nodes
+    environment:
+      - TZ=Asia/Shanghai
+```
+
+---
 
 ### 🖥️ 访问应用
 
