@@ -1,15 +1,12 @@
-# 使用 Python 3.9 作为基础镜像
-# 使用低版本的环境编译确保兼容性
-FROM python:3.9-slim-bullseye
+# ==========================================
+# 阶段 1: 构建阶段 (Builder)
+# ==========================================
+# 使用 Python 3.9 作为基础镜像 [cite: 1]
+FROM python:3.9-slim-bullseye AS builder
 
-# 设置容器内的工作目录
 WORKDIR /app
 
-# 安装系统依赖
-# PyInstaller 和 psycopg2
-# libpq-dev: 用于 PostgreSQL 支持
-# binutils: PyInstaller 需要
-# gcc/libc6-dev: 编译部分 Python 库可能需要
+# 安装构建依赖 [cite: 1]
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libc6-dev \
@@ -17,17 +14,38 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# 1. 先复制依赖文件并安装 (利用 Docker 缓存层加速构建)
+# 安装 Python 依赖 [cite: 2]
 COPY requirements.txt .
-
-# --no-cache-dir: 减小镜像体积
 RUN pip install --no-cache-dir -r requirements.txt
-# 单独安装 PyInstaller (因为它可能不在 requirements.txt 里，或者是构建工具而非运行依赖)
 RUN pip install --no-cache-dir pyinstaller
 
-# 3. 复制项目的所有代码文件到镜像中
+# 复制源码并构建
 COPY . .
+# 运行构建脚本，这会在 /app/release 生成最终文件 
+RUN python build.py
 
-# 4. 设置默认命令
-# 当容器运行时，会自动执行这个命令来打包
-CMD ["python", "build.py"]
+# ==========================================
+# 阶段 2: 运行时阶段 (Runtime)
+# ==========================================
+# 使用相同的精简版基础镜像，确保 glibc 版本一致
+FROM python:3.9-slim-bullseye
+
+WORKDIR /app
+
+# 安装运行时必需的系统库 (例如 libpq5 用于数据库)
+# 去除了 gcc 等编译工具，减小体积
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+# [核心] 从 builder 阶段只复制构建好的 release 文件夹
+COPY --from=builder /app/release .
+
+# 赋予二进制文件执行权限
+RUN chmod +x NodeTool
+
+# 暴露端口 (根据您的代码，默认是 5000)
+EXPOSE 5000
+
+# 设置容器启动命令：直接运行二进制文件
+CMD ["./NodeTool"]

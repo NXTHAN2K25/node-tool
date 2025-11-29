@@ -71,6 +71,7 @@ jobs:
       with:
         context: .
         file: Dockerfile
+        target: builder
         load: true
         tags: node-tool-builder:latest
         platforms: ${{ matrix.platform }}
@@ -143,3 +144,55 @@ jobs:
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+# ----------------------------------------------------------------
+  # 任务 4: 构建并推送 Docker 镜像
+  # ----------------------------------------------------------------
+  push-docker:
+    needs: create-release # 等 release 创建完再推送镜像，或者并行运行也可以
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # [必需] 允许写入 GitHub Packages
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          # 自动生成 tags: latest 和 v1.0.0 (基于输入)
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ github.event.inputs.tag_name }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          # 开启推送
+          push: true
+          # 同时构建 AMD64 和 ARM64 镜像
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # 使用 GitHub Actions 缓存加速构建
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
