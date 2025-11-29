@@ -68,8 +68,7 @@ function get_latest_release_url() {
     API_URL="https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest" 
     RELEASE_INFO=$(curl -s $API_URL)
     
-    # 2. 如果返回 "Not Found" 或 tag_name 为 null，说明没有正式版或 API 缓存未更新
-    #    此时启动回退机制：获取所有发布列表，并取第一个
+    # 2. 回退机制：如果找不到 Latest，获取所有发布列表并取第一个
     if echo "$RELEASE_INFO" | grep -q "Not Found" || [ "$(echo "$RELEASE_INFO" | jq -r .tag_name)" == "null" ]; then
         echo -e "${YELLOW}提示: 未找到 'Latest' 正式版，尝试获取最新发布的版本列表...${NC}" >&2
         API_URL_ALL="https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases"
@@ -77,7 +76,7 @@ function get_latest_release_url() {
         RELEASE_INFO=$(curl -s $API_URL_ALL | jq '.[0]')
     fi
     
-    # 3. 再次检查是否成功 (如果是空仓库或私有仓库，这里依然会失败)
+    # 3. 再次检查是否成功
     if echo "$RELEASE_INFO" | grep -q "Not Found" || [ "$(echo "$RELEASE_INFO" | jq -r .tag_name)" == "null" ]; then
         echo -e "${RED}错误: GitHub 仓库 $REPO_OWNER/$REPO_NAME 未找到或无任何 Release (包括预发布版)。${NC}" >&2
         exit 1
@@ -515,7 +514,8 @@ CURRENT_USER=$(whoami)
 # 清理旧日志
 rm -f "$LOG_FILE"
 
-# 生成 Systemd Service 文件 (使用绝对路径)
+# 使用 /bin/bash -c 模拟手动路径切换，解决 Docker/容器 环境下 WorkingDirectory 失效和环境变量缺失问题
+# 移除 User= 配置，使用默认用户 (Docker通常是root) 运行以减少权限问题
 cat <<EOF > ${SERVICE_NAME}.service
 [Unit]
 Description=NodeTool Web Service
@@ -524,12 +524,13 @@ After=network.target
 [Service]
 Type=simple
 User=$CURRENT_USER
-WorkingDirectory=$ABS_DIR
-ExecStart=$ABS_DIR/$BINARY_NAME
+# 使用 bash -c 显式切换目录并运行
+ExecStart=/bin/bash -c "cd $ABS_DIR && ./$BINARY_NAME"
 Restart=always
 RestartSec=5
-StandardOutput=append:$LOG_FILE
-StandardError=append:$LOG_FILE
+# 强制直接写入日志文件，规避 Docker 中 journald 缺失的问题
+StandardOutput=file:$LOG_FILE
+StandardError=file:$LOG_FILE
 
 [Install]
 WantedBy=multi-user.target
