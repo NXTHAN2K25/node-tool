@@ -41,9 +41,8 @@
 请复制以下命令，在您的终端中执行。
 
 ```bash
-wget https://github.com/hobin02130/node-tool/blob/main/install.sh \
-  && chmod +x install.sh \
-  && ./install.sh https://github.com/hobin02130/node-tool/releases/download/v1.0.0/NodeTool-Linux-amd64.zip
+# 1. 下载原始的 Shell 脚本
+wget https://raw.githubusercontent.com/hobin02130/node-tool/main/install.sh && chmod +x install.sh && ./install.sh https://github.com/hobin02130/node-tool/releases/download/v1.0.0/NodeTool-Linux-amd64.zip
 ```
 
 ### 🖥️ 访问应用
