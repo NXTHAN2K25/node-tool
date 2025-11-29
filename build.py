@@ -5,7 +5,6 @@ import sys
 import platform
 import zipfile
 import glob
-
 # ---------------------------------------------------------
 # Configuration Area
 # ---------------------------------------------------------

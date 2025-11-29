@@ -64,6 +64,12 @@ for filename in template_files:
     else:
         print(f"[Warning] Template not found during build: {src_path}")
 
+print(f"[Build Config] Ensuring db_config.json is NOT bundled...")
+added_datas = [
+    item for item in added_datas 
+    if "db_config.json" not in os.path.basename(item[0])
+]
+
 # -----------------------------------------------------------------------------
 # 3. PyInstaller Analysis
 # -----------------------------------------------------------------------------
