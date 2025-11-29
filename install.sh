@@ -565,13 +565,21 @@ else
 fi
 
 # Systemd 状态诊断
-echo -e "${YELLOW}--- Systemd 状态诊断 (获取崩溃原因) ---${NC}"
+echo -e "${YELLOW}--- Systemd 服务状态概览 ---${NC}"
 if command -v systemctl &> /dev/null; then
-    $CMD_PREFIX systemctl status $SERVICE_NAME --no-pager
+    # 检查服务是否处于 active 状态
+    if $CMD_PREFIX systemctl is-active $SERVICE_NAME &> /dev/null; then
+        echo -e "✅ 服务状态: ${GREEN}正在运行 (active)${NC}"
+    else
+        # 如果进程运行但服务不是 active (例如，服务启动失败或卡住)
+        echo -e "${RED}❌ 服务状态: ${RED}停止或启动失败 (inactive)${NC}"
+        echo -e "提示: 请使用 ${CYAN}${CMD_PREFIX} journalctl -u ${SERVICE_NAME} -n 30 --no-pager${NC} 查看详细错误日志。"
+    fi
 else
     echo "Systemctl 命令不完整或不可用，跳过详细状态检查。"
 fi
 echo "------------------------------"
+
 
 # 检查 2 & 3: 端口监听和本地 HTTP 请求
 if command -v netstat &> /dev/null; then
