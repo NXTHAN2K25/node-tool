@@ -99,7 +99,7 @@ function get_latest_release_url() {
     echo -e "版本: $(echo "$RELEASE_INFO" | jq -r .tag_name)" >&2
     echo -e "下载链接: ${CYAN}$LATEST_URL${NC}" >&2
     
-    # 🟢 唯一输出到 stdout 的内容：URL
+    # 唯一输出到 stdout 的内容：URL
     echo "$LATEST_URL"
 }
 
@@ -159,6 +159,8 @@ function perform_file_operations() {
         echo -e "${CYAN}停止 NodeTool 服务...${NC}"
         $CMD_PREFIX systemctl stop $SERVICE_NAME > /dev/null 2>&1
     fi
+    # 强制杀进程确保干净更新
+    pkill -f "./$BINARY_NAME" > /dev/null 2>&1
 
     if [ "$MODE" == "install" ]; then
         # === 安装模式：移动所有文件 ===
@@ -237,7 +239,7 @@ function check_and_uninstall_if_exists() {
 
 
 # ---------------------------------------------------------
-# 辅助函数：安装 nt 控制脚本
+# 辅助函数：安装 nt 控制脚本 (增强版：兼容 Systemd/Nohup)
 # ---------------------------------------------------------
 function install_control_script() {
     # 定义控制脚本路径
@@ -249,7 +251,8 @@ function install_control_script() {
 # NodeTool 服务控制脚本
 SERVICE_NAME="nodetool"
 INSTALL_DIR="$HOME/nodetool"
-BIN_PATH="/usr/local/bin/nt"
+START_SCRIPT="$INSTALL_DIR/start.sh"
+LOG_FILE="$INSTALL_DIR/server.log"
 # 定义颜色
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -267,29 +270,66 @@ fi
 # 显示服务状态
 function show_status() {
     echo -e "\n${CYAN}--- ${SERVICE_NAME} 运行状态概览 ---${NC}"
-    if command -v systemctl &> /dev/null; then
-        if $CMD_PREFIX systemctl is-active $SERVICE_NAME &> /dev/null; then
-            echo -e "状态: ${GREEN}● 正在运行${NC}"
-        else
-            echo -e "状态: ${RED}○ 已停止${NC}"
+    # 直接检查进程是否存在，这是最准确的
+    if pgrep -f "NodeTool" > /dev/null; then
+        echo -e "状态: ${GREEN}● 正在运行${NC}"
+        # 尝试显示监听端口
+        if command -v netstat &> /dev/null; then
+             PORT=$(netstat -tuln | grep ":5000" | head -1)
+             if [ -n "$PORT" ]; then echo -e "监听: ${GREEN}端口 5000${NC}"; fi
         fi
-        echo -e "日志/详细状态: ${CYAN}nt status detailed${NC} 或 ${CYAN}nt log${NC}"
     else
-        echo -e "${RED}Systemctl 命令不可用。${NC}"
-        echo "进程状态: $($CMD_PREFIX pgrep -f ${INSTALL_DIR}/NodeTool)"
+        echo -e "状态: ${RED}○ 已停止${NC}"
     fi
+    echo -e "日志查看: ${CYAN}nt log${NC}"
     echo "----------------------------------"
 }
 
-# 显示详细 Systemd 状态
-function show_detailed_status() {
-    echo -e "\n${CYAN}--- ${SERVICE_NAME} 详细状态 (systemctl status) ---${NC}"
+# 停止服务：尝试所有方法
+function stop_service() {
+    echo -e "${CYAN}正在停止服务...${NC}"
+    # 1. 尝试 Systemd 停止
     if command -v systemctl &> /dev/null; then
-        $CMD_PREFIX systemctl status $SERVICE_NAME --no-pager
-    else
-        echo -e "${RED}Systemctl 命令不可用。${NC}"
+        $CMD_PREFIX systemctl stop $SERVICE_NAME >/dev/null 2>&1
     fi
-    echo "----------------------------------"
+    
+    # 2. 强制 Kill 进程 (防止 Nohup 启动的进程残留)
+    pkill -f "NodeTool" >/dev/null 2>&1
+    
+    sleep 1
+    show_status
+}
+
+# 启动服务：智能回退
+function start_service() {
+    echo -e "${CYAN}正在启动服务...${NC}"
+    
+    # 1. 优先尝试 Systemd
+    if command -v systemctl &> /dev/null; then
+        $CMD_PREFIX systemctl start $SERVICE_NAME >/dev/null 2>&1
+    fi
+    
+    sleep 2
+    
+    # 2. 检查启动结果
+    if ! pgrep -f "NodeTool" > /dev/null; then
+        echo -e "${YELLOW}Systemd 启动无响应，切换到直接启动模式...${NC}"
+        
+        if [ -f "$START_SCRIPT" ]; then
+            $CMD_PREFIX bash "$START_SCRIPT"
+            sleep 2
+            
+            if pgrep -f "NodeTool" > /dev/null; then
+                 echo -e "${GREEN}✅ 已通过后台模式启动成功。${NC}"
+            else
+                 echo -e "${RED}❌ 启动失败。请检查日志。${NC}"
+            fi
+        else
+            echo -e "${RED}错误: 找不到启动脚本 $START_SCRIPT${NC}"
+        fi
+    fi
+    
+    show_status
 }
 
 # 卸载功能
@@ -297,16 +337,19 @@ function uninstall() {
     read -r -p "警告：您确定要彻底卸载 NodeTool 吗？(这将删除服务和安装目录：$INSTALL_DIR) [y/N] " response
     if [[ "$response" =~ ^([yY])$ ]]; then
         echo -e "${YELLOW}停止并禁用服务...${NC}"
-        $CMD_PREFIX systemctl stop $SERVICE_NAME > /dev/null 2>&1
-        $CMD_PREFIX systemctl disable $SERVICE_NAME > /dev/null 2>&1
-        $CMD_PREFIX rm -f /etc/systemd/system/${SERVICE_NAME}.service 2>/dev/null
-        $CMD_PREFIX systemctl daemon-reload > /dev/null 2>&1
+        stop_service # 使用增强的停止函数
+        
+        if command -v systemctl &> /dev/null; then
+            $CMD_PREFIX systemctl disable $SERVICE_NAME > /dev/null 2>&1
+            $CMD_PREFIX rm -f /etc/systemd/system/${SERVICE_NAME}.service 2>/dev/null
+            $CMD_PREFIX systemctl daemon-reload > /dev/null 2>&1
+        fi
         
         echo -e "${YELLOW}删除安装目录 $INSTALL_DIR...${NC}"
         rm -rf $INSTALL_DIR
         
         echo -e "${YELLOW}删除控制命令 'nt'...${NC}"
-        $CMD_PREFIX rm -f $BIN_PATH
+        $CMD_PREFIX rm -f "/usr/local/bin/nt"
         
         echo -e "${GREEN}🎉 NodeTool 已彻底卸载。${NC}"
         exit 0
@@ -332,8 +375,7 @@ function update() {
     
     if [ $? -eq 0 ]; then
         echo -e "${YELLOW}重新启动 NodeTool 服务...${NC}"
-        $CMD_PREFIX systemctl restart $SERVICE_NAME > /dev/null 2>&1
-        show_status
+        start_service # 使用增强的启动函数
     else
         echo -e "${RED}更新失败，请检查 $INSTALL_SCRIPT 脚本的输出。${NC}"
     fi
@@ -358,28 +400,13 @@ if [ -z "$1" ]; then
         
         case "$choice" in
             1) show_status ;;
-            2) 
-                echo -e "${CYAN}正在启动 NodeTool...${NC}"
-                $CMD_PREFIX systemctl start $SERVICE_NAME > /dev/null 2>&1
-                sleep 1
-                show_status
-                ;;
-            3) 
-                echo -e "${CYAN}正在重启 NodeTool...${NC}"
-                $CMD_PREFIX systemctl restart $SERVICE_NAME > /dev/null 2>&1
-                sleep 1
-                show_status
-                ;;
-            4) 
-                echo -e "${CYAN}正在停止 NodeTool...${NC}"
-                $CMD_PREFIX systemctl stop $SERVICE_NAME > /dev/null 2>&1
-                sleep 1
-                show_status
-                ;;
+            2) start_service ;;
+            3) stop_service; start_service ;;
+            4) stop_service ;;
             5) update ;;
             6)
                 echo -e "${CYAN}--- NodeTool 实时日志 (Ctrl+C 退出) ---${NC}"
-                $CMD_PREFIX journalctl -u $SERVICE_NAME -f
+                tail -f "$LOG_FILE"
                 ;;
             7) uninstall; break ;;
             0) echo -e "${CYAN}退出控制面板。${NC}"; break ;;
@@ -388,35 +415,19 @@ if [ -z "$1" ]; then
     done
 else
     case "$1" in
-        start)
-            echo -e "${CYAN}正在启动 NodeTool...${NC}"
-            $CMD_PREFIX systemctl start $SERVICE_NAME > /dev/null 2>&1
-            sleep 2
-            show_status
-            ;;
-        stop)
-            echo -e "${CYAN}正在停止 NodeTool...${NC}"
-            $CMD_PREFIX systemctl stop $SERVICE_NAME > /dev/null 2>&1
-            sleep 2
-            show_status
-            ;;
-        restart)
-            echo -e "${CYAN}正在重启 NodeTool...${NC}"
-            $CMD_PREFIX systemctl restart $SERVICE_NAME > /dev/null 2>&1
-            sleep 2
-            show_status
-            ;;
+        start) start_service ;;
+        stop) stop_service ;;
+        restart) stop_service; start_service ;;
         status) show_status ;;
         update) update ;;
-        detailed|status-detailed) show_detailed_status ;;
         log)
             echo -e "${CYAN}--- NodeTool 实时日志 (Ctrl+C 退出) ---${NC}"
-            $CMD_PREFIX journalctl -u $SERVICE_NAME -f
+            tail -f "$LOG_FILE"
             ;;
         uninstall) uninstall ;;
         *)
             echo -e "${RED}NodeTool 控制台${NC}"
-            echo -e "${CYAN}用法: nt [start | stop | restart | status | update | detailed | log | uninstall]${NC}"
+            echo -e "${CYAN}用法: nt [start | stop | restart | status | update | log | uninstall]${NC}"
             ;;
     esac
 fi
@@ -514,23 +525,31 @@ CURRENT_USER=$(whoami)
 # 清理旧日志
 rm -f "$LOG_FILE"
 
-# 使用 /bin/bash -c 模拟手动路径切换，解决 Docker/容器 环境下 WorkingDirectory 失效和环境变量缺失问题
-# 移除 User= 配置，使用默认用户 (Docker通常是root) 运行以减少权限问题
+# nt 面板和 fallback 逻辑都将共用此脚本，确保启动方式一致
+START_SCRIPT="$INSTALL_DIR/start.sh"
+cat <<EOF > "$START_SCRIPT"
+#!/bin/bash
+cd "$ABS_DIR"
+# 强制切断 stdin (< /dev/null)，防止 nohup 在 Docker 中挂起
+# 合并 stdout 和 stderr 到日志文件
+nohup ./$BINARY_NAME > "$LOG_FILE" 2>&1 < /dev/null &
+echo \$! > app.pid
+EOF
+chmod +x "$START_SCRIPT"
+
+# 这样 Systemd 和 Nohup 使用完全相同的启动命令，减少差异带来的 Bug
 cat <<EOF > ${SERVICE_NAME}.service
 [Unit]
 Description=NodeTool Web Service
 After=network.target
 
 [Service]
-Type=simple
+Type=forking
 User=$CURRENT_USER
-# 使用 bash -c 显式切换目录并运行
-ExecStart=/bin/bash -c "cd $ABS_DIR && ./$BINARY_NAME"
+ExecStart=$START_SCRIPT
+PIDFile=$INSTALL_DIR/app.pid
 Restart=always
 RestartSec=5
-# 强制直接写入日志文件，规避 Docker 中 journald 缺失的问题
-StandardOutput=file:$LOG_FILE
-StandardError=file:$LOG_FILE
 
 [Install]
 WantedBy=multi-user.target
@@ -541,123 +560,49 @@ if [ -n "$CMD_PREFIX" ] || [ "$EUID" -eq 0 ]; then
     # 安装服务
     $CMD_PREFIX mv ${SERVICE_NAME}.service /etc/systemd/system/${SERVICE_NAME}.service
     $CMD_PREFIX systemctl daemon-reload > /dev/null 2>&1
-    $CMD_PREFIX systemctl enable ${SERVICE_NAME}
+    $CMD_PREFIX systemctl enable ${SERVICE_NAME} > /dev/null 2>&1
     
-    echo "正在启动服务..."
-    $CMD_PREFIX systemctl restart ${SERVICE_NAME}
-    
-    # [新增] 智能回退检测：检查 Systemd 是否真的把进程起动了
-    sleep 2
-    if ! pgrep -f "./$BINARY_NAME" > /dev/null; then
-        echo -e "${YELLOW}⚠️ Systemd 启动似乎失败 (常见于 Docker/容器 环境)。${NC}"
-        echo -e "${YELLOW}👉 正在尝试自动切换到 Nohup 后台模式启动...${NC}"
-        
-        # 停止失败的服务
-        $CMD_PREFIX systemctl stop ${SERVICE_NAME} >/dev/null 2>&1
-        
-        # 强制使用 Nohup 启动
-        cd "$ABS_DIR" || exit 1
-        pkill -f "./$BINARY_NAME" || true
-        # 注意：这里使用 nohup 写入日志
-        nohup ./$BINARY_NAME >> "$LOG_FILE" 2>&1 &
-        
-        echo -e "${GREEN}✅ 已通过 Nohup 模式强制启动。${NC}"
-    else
-        echo "服务已安装并重启。"
-    fi
-
-    # 安装 nt 脚本
-    install_control_script
-else
-    echo -e "${RED}警告: 无 root/sudo 权限。使用 nohup 后备模式启动。${NC}"
-    pkill -f "./$BINARY_NAME" || true
-    nohup ./$BINARY_NAME > "$LOG_FILE" 2>&1 &
+    echo "尝试通过 Systemd 启动服务..."
+    $CMD_PREFIX systemctl restart ${SERVICE_NAME} 
 fi
 
-# 等待时间
-echo "正在等待服务启动 (3秒)..."
+# 安装 nt 面板
+install_control_script
+
+# 回退检测
+echo "正在验证服务状态..."
 sleep 3
 
-# 4. 状态检查与调试
-echo -e "${YELLOW} 正在执行健康检查...${NC}"
-
-# 检查 1: 进程
 if pgrep -f "./$BINARY_NAME" > /dev/null; then
-    echo -e "✅ 进程正在运行 (PID: $(pgrep -f "./$BINARY_NAME"))"
+    echo -e "✅ 服务通过 Systemd 启动成功！"
 else
-    echo -e "${RED}❌ 进程未运行！${NC}"
-    echo -e "${CYAN}--- 应用启动日志 ($LOG_FILE) ---${NC}"
-    if [ -f "$LOG_FILE" ]; then
-        tail -n 20 "$LOG_FILE"
-    else
-        echo "无日志文件生成。"
-    fi
-    echo -e "${CYAN}-------------------------------${NC}"
+    echo -e "${YELLOW}⚠️ Systemd 启动失败 (常见于 Docker/容器 环境)。${NC}"
+    echo -e "${YELLOW}👉 正在尝试自动切换到 Nohup 后台模式启动...${NC}"
     
-    # 崩溃诊断
-    echo -e "${YELLOW}--- 启动失败诊断 ---${NC}"
-    # 检查 ldd
-    if command -v ldd &> /dev/null; then
-        echo "依赖库检查:"
+    # 停止可能卡住的服务
+    $CMD_PREFIX systemctl stop ${SERVICE_NAME} >/dev/null 2>&1
+    
+    # 强制使用 start.sh 启动
+    bash "$START_SCRIPT"
+    sleep 3
+    
+    if pgrep -f "./$BINARY_NAME" > /dev/null; then
+        echo -e "✅ 服务已通过后台模式 (Nohup) 成功启动！"
+    else
+        echo -e "${RED}❌ 启动失败。${NC}"
+        echo -e "依赖库检查:"
         ldd "$INSTALL_DIR/$BINARY_NAME"
-    fi
-    # 检查 journalctl
-    if command -v journalctl &> /dev/null; then
-        echo -e "\nSystemd 日志:"
-        $CMD_PREFIX journalctl -u ${SERVICE_NAME}.service -n 20 --no-pager
-    fi
-    echo -e "------------------------------------"
-    
-    exit 1
-fi
-
-# Systemd 状态诊断
-echo -e "${YELLOW}--- Systemd 服务状态概览 ---${NC}"
-if command -v systemctl &> /dev/null; then
-    if $CMD_PREFIX systemctl is-active $SERVICE_NAME &> /dev/null; then
-        echo -e "✅ 服务状态: ${GREEN}正在运行 (active)${NC}"
-    else
-        echo -e "${RED}❌ 服务状态: ${RED}停止或启动失败 (inactive)${NC}"
-    fi
-else
-    echo "Systemctl 命令不完整或不可用，跳过详细状态检查。"
-fi
-echo "------------------------------"
-
-
-# 检查 2 & 3: 端口监听和本地 HTTP 请求
-if command -v netstat &> /dev/null; then
-    PORT_CHECK_CMD="netstat -tuln"
-elif command -v ss &> /dev/null; then
-    PORT_CHECK_CMD="ss -tuln"
-else
-    PORT_CHECK_CMD=""
-fi
-
-if [ -n "$PORT_CHECK_CMD" ]; then
-    if $PORT_CHECK_CMD | grep -q ":$PORT "; then
-        echo -e "✅ 端口 $PORT 正在监听"
-    else
-        echo -e "${RED}❌ 进程正在运行，但端口 $PORT 未监听。${NC}"
+        echo -e "请尝试手动运行: cd $INSTALL_DIR && ./$BINARY_NAME"
+        exit 1
     fi
 fi
 
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$PORT)
-if [ "$HTTP_CODE" -eq 200 ] || [ "$HTTP_CODE" -eq 302 ]; then
-    echo -e "✅ 本地 HTTP 请求成功 (状态码: $HTTP_CODE)"
-else
-    echo -e "${RED}❌ 本地 HTTP 请求失败 (状态码: $HTTP_CODE)。${NC}"
-    # ... (后续调试输出)
-    exit 1
-fi
-
-# 5. 最终总结
-echo -e "${YELLOW} 安装完成！${NC}"
+# 最终总结
 IP=$(curl -s ifconfig.me)
 echo -e "${GREEN}=============================================${NC}"
 echo -e "${GREEN}🎉 NodeTool 正在运行！${NC}"
 echo -e "---------------------------------------------"
-echo -e "管理命令: ${CYAN}nt [start|stop|restart|status|update|uninstall|log|detailed]${NC}"
-echo -e "日志查看: ${CYAN}${CMD_PREFIX} journalctl -u nodetool -f${NC}" 
+echo -e "管理命令: ${CYAN}nt [start|stop|restart|status|update|log]${NC}"
+echo -e "日志查看: ${CYAN}tail -f $LOG_FILE${NC}" 
 echo -e "公网地址:   ${YELLOW}http://$IP:$PORT${NC}"
 echo -e "${GREEN}=============================================${NC}"
