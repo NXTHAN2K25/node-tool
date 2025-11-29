@@ -23,7 +23,7 @@ NAT小鸡推荐！！！**[独角鲸NAT](https://fuckip.me)** 价格亲民的高
 
 ### 🚀 linux自动化安装
 
-支持amd和arm架构
+支持amd和arm架构，支持docker环境，安装完成后可使用 nt 命令打开快捷面板。
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/hobin02130/node-tool/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh
