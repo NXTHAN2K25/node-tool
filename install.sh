@@ -542,8 +542,30 @@ if [ -n "$CMD_PREFIX" ] || [ "$EUID" -eq 0 ]; then
     $CMD_PREFIX mv ${SERVICE_NAME}.service /etc/systemd/system/${SERVICE_NAME}.service
     $CMD_PREFIX systemctl daemon-reload > /dev/null 2>&1
     $CMD_PREFIX systemctl enable ${SERVICE_NAME}
+    
+    echo "正在启动服务..."
     $CMD_PREFIX systemctl restart ${SERVICE_NAME}
-    echo "服务已安装并重启。"
+    
+    # [新增] 智能回退检测：检查 Systemd 是否真的把进程起动了
+    sleep 2
+    if ! pgrep -f "./$BINARY_NAME" > /dev/null; then
+        echo -e "${YELLOW}⚠️ Systemd 启动似乎失败 (常见于 Docker/容器 环境)。${NC}"
+        echo -e "${YELLOW}👉 正在尝试自动切换到 Nohup 后台模式启动...${NC}"
+        
+        # 停止失败的服务
+        $CMD_PREFIX systemctl stop ${SERVICE_NAME} >/dev/null 2>&1
+        
+        # 强制使用 Nohup 启动
+        cd "$ABS_DIR" || exit 1
+        pkill -f "./$BINARY_NAME" || true
+        # 注意：这里使用 nohup 写入日志
+        nohup ./$BINARY_NAME >> "$LOG_FILE" 2>&1 &
+        
+        echo -e "${GREEN}✅ 已通过 Nohup 模式强制启动。${NC}"
+    else
+        echo "服务已安装并重启。"
+    fi
+
     # 安装 nt 脚本
     install_control_script
 else
