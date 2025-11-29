@@ -1,12 +1,12 @@
 import os
 import json
-import sys  # 🟢 [新增] 用于检测打包环境
+import sys  # 用于检测打包环境
 
 class Config:
     # 基础配置
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key'
     
-    # 🟢 [修改] 获取项目根目录 (basedir)
+    # 获取项目根目录 (basedir)
     # 逻辑：如果是打包环境，使用 exe 所在目录；否则使用当前文件所在目录
     if getattr(sys, 'frozen', False):
         # 打包后：使用可执行文件 (.exe) 所在的真实目录
@@ -21,7 +21,6 @@ class Config:
     
     # 1. 尝试读取 db_config.json
     _db_config = {}
-    # 🟢 这里的 basedir 现在已经指向了正确的位置 (EXE 旁或源码根目录)
     _config_path = os.path.join(basedir, 'db_config.json')
     try:
         if os.path.exists(_config_path):
@@ -53,7 +52,7 @@ class Config:
         _sqlite_path = os.environ.get('SQLITE_PATH') or _db_config.get('sqlite_path', 'app.db')
         # 确保是绝对路径
         if not os.path.isabs(_sqlite_path):
-            # 🟢 这里的 basedir 正确指向了 EXE 目录，所以 app.db 会生成在 EXE 旁边
+            
             _sqlite_path = os.path.join(basedir, _sqlite_path)
             
         SQLALCHEMY_DATABASE_URI = 'sqlite:///' + _sqlite_path

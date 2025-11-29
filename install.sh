@@ -7,15 +7,86 @@ RED='\033[0;31m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+# ---------------------------------------------------------
+# 全局变量定义
+# ---------------------------------------------------------
 INSTALL_DIR="$HOME/nodetool"
 BINARY_NAME="NodeTool"
 SERVICE_NAME="nodetool"
 PORT=5000
 LOG_FILE="$INSTALL_DIR/server.log"
 
+# --- GitHub 配置 ---
+REPO_OWNER="Hobin66"               # 项目所属用户
+REPO_NAME="node-tool"              # 仓库名称
+# ---------------------
+
 echo -e "${GREEN}=============================================${NC}"
-echo -e "${GREEN}      NodeTool 安装/更新脚本 (Debug版)       ${NC}"
+echo -e "${GREEN}      NodeTool 安装/更新脚本                  ${NC}"
 echo -e "${GREEN}=============================================${NC}"
+
+# 检查当前用户是否有 root 权限或 sudo 命令
+CMD_PREFIX=""
+if [ "$EUID" -ne 0 ] && command -v sudo &> /dev/null; then
+    CMD_PREFIX="sudo"
+fi
+
+# ---------------------------------------------------------
+# 辅助函数：识别系统架构并设置变量
+# ---------------------------------------------------------
+function set_architecture_vars() {
+    # 检查系统架构
+    ARCH=$(uname -m)
+
+    # 将 uname 的输出映射到压缩包命名规则
+    case "$ARCH" in
+        "x86_64" | "amd64")
+            export TOOL_ARCH="amd64"
+            ;;
+        "aarch64" | "arm64" | "armv8")
+            export TOOL_ARCH="arm64"
+            ;;
+        *)
+            echo -e "${RED}错误: 不支持的系统架构 '$ARCH'。${NC}"
+            echo "当前脚本仅支持 amd64 (x86_64) 和 arm64 (aarch64)。"
+            exit 1
+            ;;
+    esac
+
+    # 定义基础文件名
+    BASE_ASSET_NAME="NodeTool-Linux"
+    
+    # 最终的压缩包文件名将是：NodeTool-Linux-amd64.zip 或 NodeTool-Linux-arm64.zip
+    export ASSET_NAME="${BASE_ASSET_NAME}-${TOOL_ARCH}.zip"
+
+    echo -e "✅ 系统架构: ${CYAN}$ARCH${NC}"
+}
+
+# 获取相应架构的最新 Release 下载链接
+function get_latest_release_url() {
+
+    API_URL="https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/releases/latest" 
+    
+    # 使用 curl 获取 JSON 数据
+    RELEASE_INFO=$(curl -s $API_URL)
+    
+    # 检查 API 请求是否成功
+    if echo "$RELEASE_INFO" | grep -q "Not Found"; then
+        echo -e "${RED}错误: GitHub 仓库 $REPO_OWNER/$REPO_NAME 未找到或无任何 Release。${NC}"
+        exit 1
+    fi
+    
+    # 使用 jq 解析 JSON，提取动态生成的 $ASSET_NAME 对应的链接
+    LATEST_URL=$(echo "$RELEASE_INFO" | jq -r ".assets[] | select(.name == \"$ASSET_NAME\") | .browser_download_url")
+
+    if [ -z "$LATEST_URL" ] || [ "$LATEST_URL" == "null" ]; then
+        # 提示用户具体缺失的是哪个架构包
+        echo -e "${RED}错误: 未能在最新 Release 中找到名为 '$ASSET_NAME' 的附件 (对应的架构是 $TOOL_ARCH)。${NC}"
+        echo "请检查 Release 中是否存在该架构的压缩包。"
+        exit 1
+    fi
+    echo "$LATEST_URL"
+}
 
 # ---------------------------------------------------------
 # 辅助函数：检查并卸载旧版本 (Clean Install)
@@ -31,27 +102,24 @@ function check_and_uninstall_if_exists() {
         if [[ "$response" =~ ^([yY])$ ]]; then
             echo -e "${RED}执行完全卸载...${NC}"
             
-            # 确保有权限执行命令
-            local PREFIX=""
-            if [ "$EUID" -ne 0 ] && command -v sudo &> /dev/null; then
-                PREFIX="sudo"
-            fi
-
             # 停止和禁用服务
-            $PREFIX systemctl stop $SERVICE_NAME 2>/dev/null
-            $PREFIX systemctl disable $SERVICE_NAME 2>/dev/null
-            $PREFIX rm -f $SERVICE_FILE 2>/dev/null
-            $PREFIX systemctl daemon-reload 2>/dev/null
+            $CMD_PREFIX systemctl stop $SERVICE_NAME 2>/dev/null
+            $CMD_PREFIX systemctl disable $SERVICE_NAME 2>/dev/null
+            $CMD_PREFIX rm -f $SERVICE_FILE 2>/dev/null
+            $CMD_PREFIX systemctl daemon-reload 2>/dev/null
             
             # 删除安装目录
             rm -rf $INSTALL_DIR
             
             # 删除控制命令
-            $PREFIX rm -f $CONTROL_SCRIPT_PATH
+            $CMD_PREFIX rm -f $CONTROL_SCRIPT_PATH
             
             echo -e "${GREEN}🎉 旧版本已彻底卸载。${NC}"
+            # 卸载完成后，脚本会继续执行后续的安装步骤
+            
         else
-            echo -e "${CYAN}取消卸载。正在尝试更新...${NC}"
+            echo -e "${CYAN}取消卸载。退出${NC}"
+            exit 0
         fi
     fi
 }
@@ -63,12 +131,6 @@ function check_and_uninstall_if_exists() {
 function install_control_script() {
     # 定义控制脚本路径
     local CONTROL_SCRIPT_PATH="/usr/local/bin/nt"
-    local SERVICE_NAME="nodetool"
-    local INSTALL_DIR="$HOME/nodetool"
-    local BINARY_NAME="NodeTool" # 从主脚本继承
-
-    echo -e "${YELLOW}--- 正在创建 nt 控制命令 ---${NC}"
-    
     # 使用 heredoc 创建 nt 脚本内容
     cat <<'NT_SCRIPT_EOF' | $CMD_PREFIX tee $CONTROL_SCRIPT_PATH > /dev/null
 #!/bin/bash
@@ -211,23 +273,27 @@ NT_SCRIPT_EOF
 # 主脚本开始
 # ---------------------------------------------------------
 
-# 0. 🟢 检查并卸载旧版本 (新增步骤)
+# 调用架构识别函数
+set_architecture_vars
+
+# 检查并卸载旧版本
 check_and_uninstall_if_exists
 
 # 1. 检查依赖
-echo -e "${YELLOW}[1/7] 检查系统环境...${NC}"
-DEPENDENCIES=("unzip" "curl" "wget" "pgrep") # 增加 pgrep 检查，确保进程检测命令可用
+echo -e "${YELLOW} 检查系统环境...${NC}"
+DEPENDENCIES=("unzip" "curl" "wget" "pgrep" "jq")
 for cmd in "${DEPENDENCIES[@]}"; do
     if ! command -v $cmd &> /dev/null; then
         echo "未找到 $cmd，正在尝试自动安装..."
         INSTALL_SUCCESS=0
         if [ -x "$(command -v apt-get)" ]; then
-            # 尝试使用 apt-get 安装 (区分是否有sudo)
-            if [ "$EUID" -eq 0 ]; then sudo apt-get update && sudo apt-get install -y $cmd; else apt-get update && apt-get install -y $cmd; fi
+            # 尝试使用 apt-get 安装
+            $CMD_PREFIX apt-get update > /dev/null 2>&1
+            $CMD_PREFIX apt-get install -y $cmd
             INSTALL_SUCCESS=$?
         elif [ -x "$(command -v yum)" ]; then
             # 尝试使用 yum 安装
-            if [ "$EUID" -eq 0 ]; then sudo yum install -y $cmd; else yum install -y $cmd; fi
+            $CMD_PREFIX yum install -y $cmd
             INSTALL_SUCCESS=$?
         fi
         
@@ -237,39 +303,36 @@ for cmd in "${DEPENDENCIES[@]}"; do
         fi
     fi
 done
-echo "环境检查通过。"
 
 # 2. 获取下载链接
-if [ -n "$1" ]; then
-    DOWNLOAD_URL="$1"
-    echo -e "${YELLOW}[2/7] 使用参数中的下载链接: ${NC}$DOWNLOAD_URL"
-else
-    echo -e "${YELLOW}[2/7] 请输入下载链接:${NC}"
-    read -p "链接: " DOWNLOAD_URL
-fi
+DOWNLOAD_URL=$(get_latest_release_url)
 
 if [ -z "$DOWNLOAD_URL" ]; then
-    echo -e "${RED}错误: 未提供链接。${NC}"
+    # 错误处理，如果链接为空则退出
+    echo -e "${RED}错误: 无法获取下载链接。${NC}"
     exit 1
 fi
 
 # 3. 下载
-echo -e "${YELLOW}[3/7] 正在下载文件...${NC}"
+echo -e "${YELLOW} 正在下载文件...${NC}"
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR" || exit
 rm -f package.zip
 
-# 尝试使用 wget 下载，并将输出重定向，避免下载失败卡住
+# 尝试使用 wget 下载
 wget -O package.zip "$DOWNLOAD_URL"
 if [ $? -ne 0 ]; then
-    echo -e "${RED}下载失败。请检查链接是否正确，或尝试使用加速链接。${NC}"
+    echo -e "${RED}下载失败。请检查网络连接或 GitHub API 限制。${NC}"
     exit 1
 fi
 
 # 4. 安装
-echo -e "${YELLOW}[4/7] 正在安装...${NC}"
+echo -e "${YELLOW} 正在安装...${NC}"
 
-# 🟢 修复：确保解压成功
+# 4. 安装
+echo -e "${YELLOW} 正在安装...${NC}"
+
+# 确保解压成功
 unzip -o package.zip > /dev/null
 if [ $? -ne 0 ]; then
     echo -e "${RED}错误: 解压文件失败！请确保 'unzip' 工具已安装。${NC}"
@@ -289,10 +352,13 @@ if [ ! -f "./$BINARY_NAME" ]; then
     fi
 fi
 
+# 删除下载的压缩包
+rm -f package.zip
+
 chmod +x "$BINARY_NAME"
 
 # 5. 配置 Systemd 和控制脚本
-echo -e "${YELLOW}[5/7] 正在配置 Systemd 和控制脚本...${NC}"
+echo -e "${YELLOW} 正在设置自启与控制脚本...${NC}"
 ABS_DIR=$(cd "$INSTALL_DIR" && pwd)
 CURRENT_USER=$(whoami)
 
@@ -319,11 +385,7 @@ StandardError=append:$LOG_FILE
 WantedBy=multi-user.target
 EOF
 
-CMD_PREFIX=""
-if [ "$EUID" -ne 0 ] && command -v sudo &> /dev/null; then
-    CMD_PREFIX="sudo"
-fi
-
+# 如果有 root/sudo 权限，安装服务
 if [ -n "$CMD_PREFIX" ] || [ "$EUID" -eq 0 ]; then
     # 安装服务
     $CMD_PREFIX mv ${SERVICE_NAME}.service /etc/systemd/system/${SERVICE_NAME}.service
@@ -331,7 +393,7 @@ if [ -n "$CMD_PREFIX" ] || [ "$EUID" -eq 0 ]; then
     $CMD_PREFIX systemctl enable ${SERVICE_NAME}
     $CMD_PREFIX systemctl restart ${SERVICE_NAME}
     echo "服务已安装并重启。"
-    # 🟢 安装 nt 脚本
+    # 安装 nt 脚本
     install_control_script
 else
     echo -e "${RED}警告: 无 root/sudo 权限。使用 nohup 后备模式启动。${NC}"
@@ -339,14 +401,14 @@ else
     nohup ./$BINARY_NAME > "$LOG_FILE" 2>&1 &
 fi
 
-# 🟢 [修改] 缩短等待时间
+# 缩短等待时间
 echo "正在等待服务启动 (3秒)..."
 sleep 3
 
 # 6. 状态检查与调试
-echo -e "${YELLOW}[6/7] 正在执行健康检查...${NC}"
+echo -e "${YELLOW} 正在执行健康检查...${NC}"
 
-# 检查 1: 进程 (使用 nt status 逻辑来简化)
+# 检查 1: 进程
 if pgrep -f "./$BINARY_NAME" > /dev/null; then
     echo -e "✅ 进程正在运行 (PID: $(pgrep -f "./$BINARY_NAME"))"
 else
@@ -361,9 +423,8 @@ else
     exit 1
 fi
 
-# 🟢 [新增调试] 检查 systemd status 获取崩溃原因
+# Systemd 状态诊断
 echo -e "${YELLOW}--- Systemd 状态诊断 (获取崩溃原因) ---${NC}"
-# 尝试使用 systemctl status (如果环境支持)
 if command -v systemctl &> /dev/null; then
     $CMD_PREFIX systemctl status $SERVICE_NAME --no-pager
 else
@@ -372,7 +433,6 @@ fi
 echo "------------------------------"
 
 # 检查 2 & 3: 端口监听和本地 HTTP 请求
-# (保留原有的精确检查)
 if command -v netstat &> /dev/null; then
     PORT_CHECK_CMD="netstat -tuln"
 elif command -v ss &> /dev/null; then
@@ -418,12 +478,12 @@ else
 fi
 
 # 7. 最终总结
-echo -e "${YELLOW}[7/7] 总结${NC}"
+echo -e "${YELLOW} 安装完成！${NC}"
 IP=$(curl -s ifconfig.me)
 echo -e "${GREEN}=============================================${NC}"
 echo -e "${GREEN}🎉 NodeTool 正在运行！${NC}"
 echo -e "---------------------------------------------"
 echo -e "管理命令: ${CYAN}nt [start|stop|restart|status|uninstall]${NC}"
-echo -e "日志查看: ${CYAN}sudo journalctl -u nodetool -f${NC}"
+echo -e "日志查看: ${CYAN}${CMD_PREFIX} journalctl -u nodetool -f${NC}" # <-- 使用 CMD_PREFIX
 echo -e "公网地址:   ${YELLOW}http://$IP:$PORT${NC}"
 echo -e "${GREEN}=============================================${NC}"
