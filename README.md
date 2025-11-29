@@ -36,6 +36,8 @@ arm架构
 curl -fsSL https://raw.githubusercontent.com/hobin02130/node-tool/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh https://github.com/hobin02130/node-tool/releases/download/v1.0.1/NodeTool-Linux-arm64.zip
 ```
 
+---
+
 ### 🖥️ 访问应用
 
 安装并启动成功后，请访问以下地址查看运行效果：
