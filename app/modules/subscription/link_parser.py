@@ -358,6 +358,11 @@ def _parse_tuic(parsed, params, proxy_name):
         else:
             uuid_str = urllib.parse.unquote(userinfo_str)
     if not password: password = parsed.password
+    skip_cert_verify_value = _get_bool(
+    params, 
+    keys=['insecure', 'skip-cert-verify', 'allowInsecure'], 
+    default=True # TUIC 默认跳过证书验证
+)
 
     proxy = {
         "name": proxy_name,
@@ -369,7 +374,7 @@ def _parse_tuic(parsed, params, proxy_name):
         "tls": True,
         "udp": True,
         "disable-sni": _get_bool(params, 'disable-sni'),
-        "skip-cert-verify": _get_bool(params, ['insecure', 'skip-cert-verify', 'allowInsecure']),
+        "skip-cert-verify": skip_cert_verify_value,
         "congestion-controller": _get_param(params, 'congestion_controller', 'bbr'),
         "udp-relay-mode": _get_param(params, 'udp-relay-mode', 'native'),
         "reduce-rtt": _get_bool(params, 'reduce-rtt'),
