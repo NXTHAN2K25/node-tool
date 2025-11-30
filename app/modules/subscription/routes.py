@@ -17,7 +17,7 @@ import uuid
 from io import BytesIO
 
 from ruamel.yaml import YAML
-from .link_parser import parse_proxy_link, get_emoji_flag, extract_nodes_from_content
+from .link_parser import parse_proxy_link, get_emoji_flag, extract_nodes_from_content, fix_link_ipv6
 
 bp = Blueprint('subscription', __name__, url_prefix='/subscription', template_folder='templates')
 
@@ -833,6 +833,7 @@ def download_v2ray_base64():
         
         for proto, link in links_dict.items():
             if link and link.strip():
+                link = fix_link_ipv6(link) # 提高对ipv6的兼容性
                 # --- [修改开始] 命名格式调整: 国旗 hy2-名称 ---
                 full_name = f"{flag} {proto}-{name}".strip()
                 # --- [修改结束] ---

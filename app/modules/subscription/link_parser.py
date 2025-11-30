@@ -60,6 +60,65 @@ def parse_netloc_manual(netloc, default_port=443):
     return userinfo, server, port
 
 # ---------------------------------------------------------
+# IPv6 格式标准化修复工具
+# ---------------------------------------------------------
+def fix_link_ipv6(link):
+    """
+    [核心修复] 强制标准化链接中的 IPv6 格式
+    如果链接中的 IPv6 缺少 []，自动补全。
+    适用于 Base64 订阅导出和前端展示。
+    """
+    if not link: return link
+    link = link.strip()
+
+    # 1. 处理 VMess (Base64 JSON 特殊格式)
+    if link.lower().startswith('vmess://'):
+        try:
+            b64_part = link[8:]
+            decoded = safe_base64_decode(b64_part)
+            if not decoded: return link
+            
+            v_data = json.loads(decoded)
+            addr = v_data.get('add', '')
+            
+            # 检查地址是否为 IPv6 且无括号
+            if addr and ':' in addr and not addr.startswith('['):
+                v_data['add'] = f"[{addr}]"
+                # 重新封装为 Base64
+                new_b64 = base64.b64encode(json.dumps(v_data).encode('utf-8')).decode('utf-8')
+                return f"vmess://{new_b64}"
+            return link
+        except:
+            # 如果解析失败，原样返回，不破坏数据
+            return link
+
+    # 2. 处理标准 URL (vless, hy2, tuic, ss 等)
+    try:
+        # 解析 URL
+        parsed = urllib.parse.urlparse(link)
+        if not parsed.netloc: return link
+        
+        # 利用 parse_netloc_manual 的智能逻辑提取正确的 server (它会自动给 IPv6 加括号)
+        # 默认端口给 443 即可，只为了触发解析逻辑
+        userinfo, server, port = parse_netloc_manual(parsed.netloc, 443)
+        
+        # 重新组装 netloc
+        new_netloc = ""
+        if userinfo:
+            new_netloc += f"{userinfo}@"
+        
+        # 这里的 server 已经是带 [] 的标准格式了
+        new_netloc += f"{server}:{port}"
+        
+        # 替换 netloc 并生成新链接
+        new_parsed = parsed._replace(netloc=new_netloc)
+        return urllib.parse.urlunparse(new_parsed)
+        
+    except Exception:
+        # 如果解析出错，为了安全起见返回原链接
+        return link
+
+# ---------------------------------------------------------
 # 1. 辅助工具函数
 # ---------------------------------------------------------
 def get_emoji_flag(region_code):
