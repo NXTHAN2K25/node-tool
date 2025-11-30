@@ -696,6 +696,37 @@ def delete_local_node_api():
         return jsonify({'status': 'success', 'message': '节点已删除'})
     except Exception as e: return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@bp.route('/api/nodes/clear_subscription', methods=['POST'])
+@login_required
+def clear_subscription_nodes_api():
+    """
+    API: 清除所有订阅节点 (origin='sub')
+    保留手动添加的 (local) 和数据库同步的 (db) 节点
+    """
+    try:
+        # 1. 读取当前节点列表
+        local_nodes = load_local_nodes_raw()
+        initial_count = len(local_nodes)
+        
+        # 2. 过滤列表：只保留 origin 不为 'sub' 的节点
+        # 这样会把 'sub' 节点全部剔除，保留 'local' 和 'db'
+        new_nodes = [n for n in local_nodes if n.get('origin') != 'sub']
+        
+        deleted_count = initial_count - len(new_nodes)
+        
+        # 3. 如果有变化，保存并触发同步
+        if deleted_count > 0:
+            save_local_nodes(new_nodes)
+            sync_nodes_to_files() # 立即重新生成 yaml，让更改生效
+            msg = f'已清除 {deleted_count} 个订阅节点'
+        else:
+            msg = '没有可清除的订阅节点'
+            
+        return jsonify({'status': 'success', 'message': msg})
+        
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 @bp.route('/api/local_nodes/delete_protocol', methods=['POST'])
 @login_required
 def delete_local_node_protocol_api():

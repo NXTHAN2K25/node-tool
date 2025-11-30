@@ -689,7 +689,7 @@
     .loc-badge { font-size: 9px; background: #e3f2fd; color: #1976d2; padding: 1px 4px; border-radius: 3px; font-weight: 700; margin-left: 5px; }
     .sub-badge { font-size: 9px; background: #f3e5f5; color: #8e24aa; padding: 1px 4px; border-radius: 3px; font-weight: 700; margin-left: 5px; }
 
-    .add-form { display: flex; flex-direction: column; gap: 12px; z-index: 1; height: 100%; }
+    .add-form { display: flex; flex-direction: column; gap: 0px; z-index: 1; height: 100%; }
     .form-group { display: flex; flex-direction: column; gap: 5px; }
     .form-label { font-size: 12px; font-weight: 600; color: #555; }
     .add-input, .add-select { border: 1px solid #ddd; border-radius: 6px; padding: 8px; font-size: 13px; outline: none; width: 100%; box-sizing: border-box; background: white; }
@@ -982,6 +982,11 @@
                                 value="{{ settings.external_sub_url }}">
                     </div>
                     
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <button class="btn-add-large" id="btnFetchSub" onclick="fetchFromSubscription()" style="flex: 1; background-color: #6c5ce7;">更新订阅</button>
+                        <button class="btn-add-large" onclick="clearSubscriptionNodes()" style="flex: 1; background-color: #d74242; font-size: 13px;">清除订阅节点</button>
+                    </div>
+
                     <div style="border-bottom: 1px dashed #ddd; margin: 2px 0;"></div>
                     <div class="form-group">
                         <label class="form-label">节点名称 (同名自动合并)</label>
@@ -1003,10 +1008,9 @@
                     </div>
 
                     <div class="add-btn-row">
-                        <button class="btn-add-large" onclick="addLocalNode()" style="flex: 1.5;">添加节点</button>
-                        <button class="btn-add-large" id="btnFetchSub" onclick="fetchFromSubscription()" style="flex: 1; background-color: #6c5ce7;">刷新订阅</button>
+                        <button class="btn-add-large" onclick="addLocalNode()" style="flex: 1;">添加</button>
                     </div>
-                    </div>
+                </div>
             </div>
 
             <div class="node-column" id="col-details" data-title="节点详情">
@@ -1470,7 +1474,9 @@
         <div class="details-bottom-fixed">
             <div class="details-action-buttons">
                 <button class="btn-action-panel btn-close-panel" onclick="closeDetailsPanel()">关闭</button>
-                ${node.is_local ? `<button class="btn-action-panel btn-delete-panel" onclick="deleteCurrentNode('${node.uuid}')">删除</button>` : ''}
+                
+                ${!node.is_db ? `<button class="btn-action-panel btn-delete-panel" onclick="deleteCurrentNode('${node.uuid}')">删除</button>` : ''}
+                
                 <button class="btn-action-panel btn-save-panel" id="btnSaveDetailsBottom" onclick="saveNodeDetails()">保存修改</button>
             </div>
         </div>
@@ -1481,7 +1487,7 @@
 
     // 删除当前节点 (详情页调用)
     function deleteCurrentNode(uuid) {
-        if(!confirm('确定要删除这个本地节点吗？所有关联的协议都会被移除。')) return;
+        if(!confirm('确定要删除这个节点吗？所有关联的协议都会被移除。')) return;
         
         fetch("{{ url_for('subscription.delete_local_node_api') }}", {
             method: 'POST',
@@ -1599,6 +1605,44 @@
                 }
             });
     }
+    // 清除所有订阅节点
+    function clearSubscriptionNodes() {
+        if(!confirm('⚠️ 警告：确定要清除所有通过“订阅链接”获取的节点吗？')) return;
+
+        // 获取按钮以改变状态
+        const btn = document.querySelector('button[onclick="clearSubscriptionNodes()"]');
+        const originalText = btn ? btn.innerText : '清除订阅节点';
+        if(btn) {
+            btn.innerText = '清除中...';
+            btn.disabled = true;
+        }
+
+        // 假设后端新增了 clear_subscription_nodes_api 路由
+        fetch("{{ url_for('subscription.clear_subscription_nodes_api') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.status === 'success') {
+                showToast('✅ 订阅节点已全部清除');
+                fetchNodes();   // 重新加载列表
+                refreshStats(); // 刷新统计
+            } else {
+                showToast('❌ 清除失败: ' + res.message, 'error');
+            }
+        })
+        .catch(err => {
+            showToast('❌ 请求失败: 接口可能未实现', 'error');
+            console.error(err);
+        })
+        .finally(() => {
+            if(btn) {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        });
+    }
 
     function fetchFromSubscription() {
         const urlInput = document.getElementById('subUrlInput');
@@ -1631,7 +1675,6 @@
         .then(res => {
             if (res.status === 'success') {
                 showToast(res.message);
-                urlInput.value = ''; // 清空输入框
                 fetchNodes();      // 刷新列表
                 refreshStats();    // 刷新统计
             } else {
