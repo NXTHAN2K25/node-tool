@@ -492,6 +492,7 @@ def _parse_ss(link, proxy_name, params=None):
     try:
         body = link[5:]
         if '#' in body: body, _ = body.split('#', 1)
+        if '?' in body: body, _ = body.split('?', 1)
 
         if '@' not in body:
             decoded = safe_base64_decode(body)
