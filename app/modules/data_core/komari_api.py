@@ -71,7 +71,7 @@ def sync_node_list():
     print(f"[{datetime.now().strftime('%H:%M:%S')}] 尝试同步 Komari 节点列表...")
     
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=60)
         response.raise_for_status() 
         data = response.json()
 
@@ -119,7 +119,7 @@ def fetch_and_save_snapshots():
         headers = _get_komari_headers()
 
         try:
-            response = requests.get(url, headers=headers, timeout=5)
+            response = requests.get(url, headers=headers, timeout=60)
             response.raise_for_status()
             data = response.json()
             
